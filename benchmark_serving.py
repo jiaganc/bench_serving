@@ -591,39 +591,43 @@ async def benchmark(
     goodput_config_dict: Dict[str, float],
     max_concurrency: Optional[int],
     lora_modules: Optional[List[str]],
+    skip_test_request: bool,
 ):
     if backend in ASYNC_REQUEST_FUNCS:
         request_func = ASYNC_REQUEST_FUNCS[backend]
     else:
         raise ValueError(f"Unknown backend: {backend}")
 
-    print("Starting initial single prompt test run...")
-    test_prompt, test_prompt_len, test_output_len, test_mm_content = (
-        input_requests[0])
-    if backend != "openai-chat" and test_mm_content is not None:
-        # multi-modal benchmark is only available on OpenAI Chat backend.
-        raise ValueError(
-            "Multi-modal content is only supported on 'openai-chat' backend.")
-    test_input = RequestFuncInput(
-        model=model_id,
-        model_name=model_name,
-        prompt=test_prompt,
-        api_url=api_url,
-        prompt_len=test_prompt_len,
-        output_len=test_output_len,
-        logprobs=logprobs,
-        best_of=best_of,
-        multi_modal_content=test_mm_content,
-        ignore_eos=ignore_eos,
-    )
+    if not skip_test_request:
+        print("Starting initial single prompt test run...")
+        test_prompt, test_prompt_len, test_output_len, test_mm_content = (
+            input_requests[0])
+        if backend != "openai-chat" and test_mm_content is not None:
+            # multi-modal benchmark is only available on OpenAI Chat backend.
+            raise ValueError(
+                "Multi-modal content is only supported on 'openai-chat' backend.")
+        test_input = RequestFuncInput(
+            model=model_id,
+            model_name=model_name,
+            prompt=test_prompt,
+            api_url=api_url,
+            prompt_len=test_prompt_len,
+            output_len=test_output_len,
+            logprobs=logprobs,
+            best_of=best_of,
+            multi_modal_content=test_mm_content,
+            ignore_eos=ignore_eos,
+        )
 
-    test_output = await request_func(request_func_input=test_input)
-    if not test_output.success:
-        raise ValueError(
-            "Initial test run failed - Please make sure benchmark arguments "
-            f"are correctly specified. Error: {test_output.error}")
+        test_output = await request_func(request_func_input=test_input)
+        if not test_output.success:
+            raise ValueError(
+                "Initial test run failed - Please make sure benchmark arguments "
+                f"are correctly specified. Error: {test_output.error}")
+        else:
+            print("Initial test run completed. Starting main benchmark run...")
     else:
-        print("Initial test run completed. Starting main benchmark run...")
+        print("Skipping initial test request. Starting main benchmark run...")
 
     if lora_modules:
         # For each input request, choose a LoRA module at random.
@@ -1001,6 +1005,7 @@ def main(args: argparse.Namespace):
             goodput_config_dict=goodput_config_dict,
             max_concurrency=args.max_concurrency,
             lora_modules=args.lora_modules,
+            skip_test_request=args.skip_test_request,
         ))
 
     # Save config and results to json
@@ -1352,6 +1357,13 @@ if __name__ == "__main__":
                         help="A subset of LoRA module names passed in when "
                         "launching the server. For each request, the "
                         "script chooses a LoRA module at random.")
+
+    parser.add_argument("--skip-test-request",
+                        action="store_true",
+                        default=False,
+                        help="Skip sending an initial test request before "
+                        "starting the benchmark. By default, a test request "
+                        "is sent to verify the configuration is correct.")
 
     args = parser.parse_args()
     main(args)
