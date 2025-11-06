@@ -386,12 +386,12 @@ def sample_random_requests(
         input_len = input_len - chat_template_len
 
     input_lens = np.random.randint(
-        min(int(input_len * range_ratio), 1),
+        max(int(input_len * range_ratio), 1),
         input_len + 1,
         size=num_prompts,
     )
     output_lens = np.random.randint(
-        min(int(output_len * range_ratio), 1),
+        max(int(output_len * range_ratio), 1),
         output_len + 1,
         size=num_prompts,
     )
